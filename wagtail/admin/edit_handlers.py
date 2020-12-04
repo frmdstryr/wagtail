@@ -100,6 +100,7 @@ class EditHandler:
         self.instance = None
         self.request = None
         self.form = None
+        self.parent = None
 
     def clone(self):
         return self.__class__(**self.clone_kwargs())
@@ -132,7 +133,7 @@ class EditHandler:
     def html_declarations(self):
         return ''
 
-    def bind_to(self, model=None, instance=None, request=None, form=None):
+    def bind_to(self, model=None, instance=None, request=None, form=None, parent=None):
         if model is None and instance is not None and self.model is None:
             model = instance._meta.model
 
@@ -141,6 +142,10 @@ class EditHandler:
         new.instance = self.instance if instance is None else instance
         new.request = self.request if request is None else request
         new.form = self.form if form is None else form
+        new.parent = self.parent if parent is None else parent
+
+        if new.parent is not None:
+            new.on_parent_bound()
 
         if new.model is not None:
             new.on_model_bound()
@@ -156,6 +161,9 @@ class EditHandler:
 
         return new
 
+    def on_parent_bound(self):
+        pass
+
     def on_model_bound(self):
         pass
 
@@ -169,9 +177,10 @@ class EditHandler:
         pass
 
     def __repr__(self):
-        return '<%s with model=%s instance=%s request=%s form=%s>' % (
+        return '<%s with model=%s instance=%s request=%s form=%s parent=%s>' % (
             self.__class__.__name__,
-            self.model, self.instance, self.request, self.form.__class__.__name__)
+            self.model, self.instance, self.request,
+            self.form.__class__.__name__, self.parent)
 
     def classes(self):
         """
@@ -279,6 +288,10 @@ class BaseCompositeEditHandler(EditHandler):
 
     def html_declarations(self):
         return mark_safe(''.join([c.html_declarations() for c in self.children]))
+
+    def on_parent_bound(self):
+        self.children = [child.bind_to(parent=self.parent)
+                         for child in self.children]
 
     def on_model_bound(self):
         self.children = [child.bind_to(model=self.model)
@@ -535,9 +548,10 @@ class FieldPanel(EditHandler):
         self.help_text = self.bound_field.help_text
 
     def __repr__(self):
-        return "<%s '%s' with model=%s instance=%s request=%s form=%s>" % (
+        return "<%s '%s' with model=%s instance=%s request=%s form=%s parent=%s>" % (
             self.__class__.__name__, self.field_name,
-            self.model, self.instance, self.request, self.form.__class__.__name__)
+            self.model, self.instance, self.request,
+            self.form.__class__.__name__, self.parent)
 
 
 class RichTextFieldPanel(FieldPanel):
@@ -711,7 +725,8 @@ class InlinePanel(EditHandler):
 
             child_edit_handler = self.get_child_edit_handler()
             self.children.append(child_edit_handler.bind_to(
-                instance=subform.instance, request=self.request, form=subform))
+                instance=subform.instance, request=self.request,
+                form=subform, parent=self))
 
         # if this formset is valid, it may have been re-ordered; respect that
         # in case the parent form errored and we need to re-render
@@ -724,9 +739,10 @@ class InlinePanel(EditHandler):
         if self.formset.can_order:
             empty_form.fields[ORDERING_FIELD_NAME].widget = forms.HiddenInput()
 
-        self.empty_child = self.get_child_edit_handler()
-        self.empty_child = self.empty_child.bind_to(
-            instance=empty_form.instance, request=self.request, form=empty_form)
+        empty_child = self.get_child_edit_handler()
+        self.empty_child = empty_child.bind_to(
+            instance=empty_form.instance, request=self.request,
+            form=empty_form, parent=self)
 
     template = "wagtailadmin/edit_handlers/inline_panel.html"
 
