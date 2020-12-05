@@ -679,7 +679,8 @@ class InlinePanel(EditHandler):
     def get_child_edit_handler(self):
         panels = self.get_panel_definitions()
         child_edit_handler = MultiFieldPanel(panels, heading=self.heading)
-        return child_edit_handler.bind_to(model=self.db_field.related_model)
+        return child_edit_handler.bind_to(
+            model=self.db_field.related_model, parent=self)
 
     def required_formsets(self):
         child_edit_handler = self.get_child_edit_handler()
@@ -725,8 +726,7 @@ class InlinePanel(EditHandler):
 
             child_edit_handler = self.get_child_edit_handler()
             self.children.append(child_edit_handler.bind_to(
-                instance=subform.instance, request=self.request,
-                form=subform, parent=self))
+                instance=subform.instance, request=self.request, form=subform))
 
         # if this formset is valid, it may have been re-ordered; respect that
         # in case the parent form errored and we need to re-render
@@ -739,10 +739,9 @@ class InlinePanel(EditHandler):
         if self.formset.can_order:
             empty_form.fields[ORDERING_FIELD_NAME].widget = forms.HiddenInput()
 
-        empty_child = self.get_child_edit_handler()
-        self.empty_child = empty_child.bind_to(
-            instance=empty_form.instance, request=self.request,
-            form=empty_form, parent=self)
+        self.empty_child = self.get_child_edit_handler()
+        self.empty_child = self.empty_child.bind_to(
+            instance=empty_form.instance, request=self.request, form=empty_form)
 
     template = "wagtailadmin/edit_handlers/inline_panel.html"
 
